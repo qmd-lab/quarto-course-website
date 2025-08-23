@@ -1,35 +1,70 @@
 // Import external libraries
 import { parse, stringify } from "https://deno.land/std/yaml/mod.ts";
 import { join } from "https://deno.land/std/path/mod.ts";
+import { existsSync } from "https://deno.land/std/fs/mod.ts";
+import { format, parse as parseDate } from "https://deno.land/std/datetime/mod.ts";
 
+
+// ---------------------- //
+//   Read Scheduled Docs  //
+// ---------------------- //
+
+export async function readScheduledDocs(ymlPath: string, scheduledDocsKey: string, configParams: string): Promise<any> {
+  const yamlContent = await Deno.readTextFile(ymlPath);
+  const parsedYaml = parse(yamlContent);
+  if (!parsedYaml.hasOwnProperty(configParams['scheduled-docs-key'])) {
+    console.log(`> "${configParams['scheduled-docs-key']}" key not found in ${configParams['path-to-yaml']}. Extension is installed but not being used.`);
+    Deno.exit(0); // Exits the script if the extension is added but not used
+  }
+  const scheduledDocs = parsedYaml[scheduledDocsKey];
+  return scheduledDocs;
+}
 
 
 // --------------------- //
 //     Propagate Keys    //
 // --------------------- //
 // Propagate the unignored keys into nested objects, being sure to not overwrite
-// any keys of the same name.
+// any keys of the same name. Also add a `projectProfile` key if one is active.
 
 export function propagateKeys(obj: any, parentProps: Record<string, string> = {}, ignoreKeys = ['debug', 'draft-after', 'timezone', 'this-week', 'grouping-label']) {
+    
+    // if the object is an array, re-call this function on each item
     if (Array.isArray(obj)) {
         obj.forEach(item => {
             if (typeof item === 'object' && item !== null) {
                 propagateKeys(item, parentProps, ignoreKeys);
             }
         });
+        
+    // if it's not an array, then...
     } else if (typeof obj === 'object' && obj !== null) {
+      
+        // prepare new properties of the object that inherit parent properties and..
         const newProps = { ...parentProps };
         
+        // for each key..
         Object.keys(obj).forEach(key => {
             if (!ignoreKeys.includes(key)) {
+              
+                // copy it into the new properties if its a simple key-value pair
                 if (typeof obj[key] === 'string') {
                     newProps[key] = obj[key];
+                    
+                // but if it's has a nested object, re-call this function
                 } else if (typeof obj[key] === 'object' && obj[key] !== null) {
                     propagateKeys(obj[key], newProps, ignoreKeys);
                 }
             }
         });
 
+        // add any project profile that is activated
+        const projectProfile = Deno.env.get("QUARTO_PROFILE");
+        if (projectProfile !== "") {
+          newProps['projectProfile'] = projectProfile;
+        }
+        
+        // then add each of the new properties to the current object
         Object.keys(newProps).forEach(key => {
             if (obj[key] === undefined) {
                 obj[key] = newProps[key];
@@ -40,14 +75,14 @@ export function propagateKeys(obj: any, parentProps: Record<string, string> = {}
 
 
 // ------------------------ //
-//     Process Schedule     //
+//     Set Draft Status     //
 // ------------------------ //
 // Set draft values for all items and collects them
 // into a doclist key in the config file
 
-export function processSchedule(obj, itemsKey: string = "docs") {
+export function setDraftStatuses(obj, itemsKey: string = "docs", dateFormat: string, ymlPath: string) {
   
-  console.log("> Processing schedule ...")
+  console.log("> Setting draft status of docs ...")
   const draftAfterStr = obj["draft-after"];
   const timezone = obj["timezone"];
   
@@ -55,7 +90,7 @@ export function processSchedule(obj, itemsKey: string = "docs") {
   if (draftAfterStr === "system-time") {
       thresholdDate = new Date();
   } else {
-      thresholdDate = new Date(convertDateToISOFormat(draftAfterStr, timezone));
+      thresholdDate = new Date(convertDateToISOFormat(draftAfterStr, timezone, dateFormat));
   }
   
   let collectedItems = []
@@ -91,7 +126,7 @@ export function processSchedule(obj, itemsKey: string = "docs") {
   function getDraftVal(item: any, thresholdDate: Date, timezone: string): boolean {
     // default to false
     let draftValue = false;
-    const itemDate = new Date(convertDateToISOFormat(item.date, timezone));
+    const itemDate = new Date(convertDateToISOFormat(item.date, timezone, dateFormat));
       
     // override if using draft-after
     if (itemDate > thresholdDate) {
@@ -112,6 +147,9 @@ export function processSchedule(obj, itemsKey: string = "docs") {
   
   console.log(`  - ${nDrafts} docs set to 'draft: true'.`);
   console.log(`  - ${nNotDrafts} docs set to 'draft: false'.`);
+  if (nDrafts === 0) {
+     console.log(`  To dynamically publish documents based on date, set the 'draft-after' date in ${ymlPath}.`);
+  }
 
   //return config;
 }
@@ -205,14 +243,211 @@ export async function writeListingContents(obj: any, tempFilesDir: string ) {
     console.log("  - No listing groups found");
   } else {
     for (const [typeKey, items] of Object.entries(groupedDocs)) {
-      const outputPath = join(Deno.cwd(), tempFilesDir, `${typeKey}-docs.yml`);
+      const outputPath = join(Deno.cwd(), tempFilesDir, `${typeKey}-listing.yml`);
       await Deno.mkdir(tempFilesDir, { recursive: true });
       await Deno.writeTextFile(outputPath, stringify(items));
-      console.log(`Created file: ${outputPath}`);
+      console.log(`  - Created file: ${outputPath}`);
     }
   }
 }
   
+  
+// ------------------------------- //
+//     Write autonav contents      //
+// ------------------------------- //
+// Write the sidebar contents (sidebar or hybrid nav) for all sets of docs with a defined group
+
+export async function writeAutonavContents(obj: any, tempFilesDir: string) {
+  
+  // Exit if not using autonav
+  if (obj.autonav === undefined ) {
+    return;
+  } else {
+    console.log("> Processing autonav options ...");
+  }
+  
+  if (obj.autonav.sidebar !== undefined && obj.autonav.hybrid !== undefined) {
+    console.log("  - Can only use sidebar or hybrid navigation, not both.");
+    return;
+  }
+  
+  if (obj.autonav.sidebar !== undefined) {
+    await writeSidebarContents(obj, tempFilesDir);
+  } else if (obj.autonav.hybrid !== undefined) {
+    await writeHybridContents(obj, tempFilesDir);
+  } else {
+    console.log("  - Neither hybrid or sidebar options found.");
+    return;
+  }
+}
+
+async function writeSidebarContents(obj: any, tempFilesDir: string) {
+  console.log("  > Making sidebar contents files ...");
+  
+  // use a `grouping-label` if defined, otherwise use `type`
+  const type = obj['grouping-label'] ? obj['grouping-label'] : 'type';
+
+  // get the sidebar type and subsection label
+  const sidebarType = obj.autonav.sidebar.type;
+  const sectionLabel = obj.autonav.sidebar['section-label'] || 'subtype';
+
+  // group documents by their type and section
+  const groupedDocs: Record<string, Record<string, any[]>> = {};
+
+  for (const doc of obj.doclist) {
+    if (!doc[type] || !doc.href) {
+      continue;
+    }
+    const originalType = doc[type];
+    const originalSection = doc[sectionLabel] || "No Section";
+    
+    const typeKey = originalType.replace(" ", "-").toLowerCase();
+    const sectionKey = originalSection.replace(" ", "-").toLowerCase();
+
+    if (!groupedDocs[typeKey]) {
+      groupedDocs[typeKey] = {};
+    }
+    if (!groupedDocs[typeKey][sectionKey]) {
+      groupedDocs[typeKey][sectionKey] = [];
+    }
+    groupedDocs[typeKey][sectionKey].push({ href: `${doc.href}`, originalSection });
+  }
+
+  // process only the group that matches the sidebar type
+  const items = groupedDocs[sidebarType.toLowerCase().replace(" ", "-")];
+
+  if (!items) {
+    console.log("    - No matching group of docs found for ", sidebarType);
+    return;
+  }
+
+  // build the contents structure
+  const sidebarContents: any[] = [];
+
+  if (items["no-section"]) {
+    // add items without a section first
+    sidebarContents.push(...items["no-section"]);
+    delete items["no-section"];
+  }
+
+  for (const [sectionKey, docs] of Object.entries(items)) {
+    const originalSectionName = docs[0].originalSection;
+    sidebarContents.push({
+      section: originalSectionName,
+      contents: docs.map(doc => ({ href: doc.href }))
+    });
+  }
+
+  const yamlContent = {
+    website: {
+      sidebar: {
+        contents: [
+          {
+            section: sidebarType,
+            href: `${sidebarType}.qmd`,
+            contents: sidebarContents
+          }
+        ]
+      }
+    }
+  };
+
+  const outputPath = join(Deno.cwd(), tempFilesDir, `sidebar-contents.yml`);
+  await Deno.mkdir(tempFilesDir, { recursive: true });
+  await Deno.writeTextFile(outputPath, stringify(yamlContent));
+  console.log(`    - Created file: ${outputPath}`);
+}
+
+
+async function writeHybridContents(obj: any, tempFilesDir: string) {
+  console.log("  > Making hybrid contents files ...");
+
+  // initialize sidebar contents
+  const sidebarContents: any[] = [];
+
+  // iterate over each hybrid config entry
+  for (const hybridConfig of obj.autonav.hybrid) {
+    
+    // use a `grouping-label` if defined, otherwise use `type`
+    const typeLabel = obj['grouping-label'] ? obj['grouping-label'] : 'type';
+    
+    const type = hybridConfig[typeLabel];
+    const landingPage = hybridConfig['landing-page'];
+    const sectionLabel = hybridConfig['section-label'] || null;
+
+    // create a new sidebar item, copying all keys from hybridConfig
+    const sidebarItem: any = { ...hybridConfig };
+    delete sidebarItem.type;
+    delete sidebarItem['landing-page'];
+    delete sidebarItem['section-label'];
+
+    // group documents by their type and section (if sectionLabel is defined)
+    const groupedDocs: Record<string, any[]> = {};
+
+    for (const doc of obj.doclist) {
+      if (doc.type !== type || !doc.href) {
+        continue;
+      }
+
+      const sectionName = doc[sectionLabel] || "default";
+      
+      // if this is the first doc in the section open a contents section
+      if (!groupedDocs[sectionName]) {
+        groupedDocs[sectionName] = { landingPage: null, contents: [] };
+      }
+      
+      // if its not, add on to the contents
+      if (doc['section-landing-page']) {
+        groupedDocs[sectionName].landingPage = doc.href;
+      } else {
+        groupedDocs[sectionName].contents.push({ href: doc.href });
+      }
+    }
+
+    // build the contents structure for the current hybrid config
+    const sectionContents: any[] = [];
+
+    if (sectionLabel) {
+      for (const [section, docs] of Object.entries(groupedDocs)) {
+        const sectionEntry: any = {
+          section: section,
+          contents: docs.contents
+        };
+        if (docs.landingPage) {
+          sectionEntry.href = docs.landingPage;
+        }
+        sectionContents.push(sectionEntry);
+      }
+    } else {
+      sectionContents.push(...groupedDocs['default'].contents);
+    }
+
+    // add the main landing page as the only top-level contents item and then
+    // next within it the sectionContents
+    sidebarItem.contents = [
+      {
+        section: sidebarItem.title,
+        href: landingPage,
+        contents: sectionContents
+      }
+    ];
+      
+    // add this sidebar item to the final sidebar contents
+    sidebarContents.push(sidebarItem);
+  }
+
+  const yamlContent = {
+    website: {
+      sidebar: sidebarContents
+    }
+  };
+
+  const outputPath = join(Deno.cwd(), tempFilesDir, `sidebar-contents.yml`);
+  await Deno.mkdir(tempFilesDir, { recursive: true });
+  await Deno.writeTextFile(outputPath, stringify(yamlContent));
+  console.log(`    - Created file: ${outputPath}`);
+}
+
 
   
 // --------------------------------- //
@@ -239,20 +474,28 @@ export async function removeTempDir(obj: any, tempFilesDir: string) {
 // ----------------- //
 //     Utilities     //
 // ----------------- //
-export async function readYML(ymlPath: string, scheduledDocsKey: string): Promise<any> {
-  const yamlContent = await Deno.readTextFile(ymlPath);
-  const parsedYaml = parse(yamlContent);
-  if (!parsedYaml.hasOwnProperty('scheduled-docs')) {
-    console.log('> "scheduled-docs" key not found in "_quarto.yml". scheduled-docs"" extension is installed but not being used.');
-    Deno.exit(0); // Exits the script if the extension is added but not used
+export async function readConfig(): Promise<any> {
+  // the extension can be installed in two places, so check both
+  const path1 = './_extensions/scheduled-docs/config.yml';
+  const path2 = './_extensions/qmd-lab/scheduled-docs/config.yml';
+  let yamlContent: string;
+
+  if (existsSync(path1)) {
+    yamlContent = await Deno.readTextFile(path1);
+  } else if (existsSync(path2)) {
+      yamlContent = await Deno.readTextFile(path2);
+  } else {
+      throw new Error('Scheduled-docs config.yml file not found.');
   }
-  const scheduledDocs = parsedYaml[scheduledDocsKey];
-  return scheduledDocs;
+
+  const parsedYaml = parse(yamlContent);
+  return parsedYaml
 }
 
-function convertDateToISOFormat(dateStr: string, timezone: string): string {
-    const [month, day, year] = dateStr.split('/').map(num => num.padStart(2, '0'));
-    return `20${year}-${month}-${day}T00:00:00${timezone}`;
+function convertDateToISOFormat(dateStr: string, timezone: string, dateFormat: string): string {
+    // Convert to ISO format as a string.
+    const iso = format(parseDate(dateStr, dateFormat), 'yyyy-MM-dd');
+    return `${iso}T00:00:00${timezone}`;
 }
 
 function deepCopy(obj) {
