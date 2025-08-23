@@ -10,3 +10,4 @@ _partial-site
 _full-site
 
 cw_files
+/.luarc.json
