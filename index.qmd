@@ -3,11 +3,11 @@ title: Course 101
 subtitle: My University
 listing:
   - id: schedule-listing
-    contents: scheduled-docs_files/schedule.yml
-    template: '_extensions/qmd-lab/course-website/schedule.ejs'
+    contents: 'scheduled-docs_files/schedule.yml'
+    template: '_extensions/qmd-lab/course-website-ejs/schedule-wall-calendar/schedule.ejs'
   # - id: this-week
-  #   contents: cw_files/this-week.yml
-  #   template: '_extensions/qmd-lab/course-website/this-week.ejs'
+  #   contents: scheduled-docs_files/this-week.yml
+  #   template: '_extensions/qmd-lab/course-website-ejs/schedule-this-week/schedule.ejs'
 ---
 
 :::{#this-week}
