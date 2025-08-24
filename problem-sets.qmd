@@ -2,7 +2,7 @@
 listing:
   - id: PS-listing
     contents: 
-      - scheduled-docs_files/ps-docs.yml
+      - scheduled-docs_files/ps-listing.yml
     type: table
     categories: false
 page-layout: full

@@ -2,7 +2,7 @@
 listing:
   - id: Slides-listing
     contents: 
-      - scheduled-docs_files/slides-docs.yml
+      - scheduled-docs_files/slides-listing.yml
     sort: "date desc"
     type: grid
     fields: 

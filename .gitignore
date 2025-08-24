@@ -9,5 +9,5 @@ _site
 _partial-site
 _full-site
 
-cw_files
+scheduled-docs_files
 /.luarc.json
