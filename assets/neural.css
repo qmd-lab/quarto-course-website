@@ -1,0 +1,9 @@
+/* Remove right border from Quarto sidebar */
+#quarto-sidebar.sidebar.sidebar-navigation {
+  border-right: none !important;
+}
+
+.navbar #quarto-search.type-overlay .aa-Autocomplete svg.aa-SubmitIcon {
+  width: 18px !important;
+  height: 18px !important;
+}
