@@ -1,0 +1,38 @@
+meta:
+  name: Course 101
+
+color:
+  palette:
+    orange: "#FF6F20"
+    pink: "#FF3D7F"
+    green: "#28A745"
+    yellow: "#FFC107"
+  primary: orange
+  success: green
+  warning: yellow
+  danger: pink
+
+typography:
+  fonts:
+    - family: Inter
+      source: google
+    - family: IBM Plex Mono
+      source: google
+    - family: Rubik
+      source: google
+  base:
+    family: Inter
+    line-height: 1.6
+  headings:
+    family: Inter
+    weight: normal
+  link:
+    color: purple
+  monospace:
+    family: IBM Plex Mono
+    size: 1em
+  monospace-inline:
+    color: "#222222"
+    background-color: "#ddeaf1"
+  monospace-block: 
+    background-color: "#eef4f8"

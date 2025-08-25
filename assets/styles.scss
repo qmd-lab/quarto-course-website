@@ -1,5 +1,12 @@
 /*-- scss:defaults --*/
 
+// Import Inter font from Google Fonts
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+
+// Set Inter as the primary font
+$font-family-sans-serif: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji" !default;
+$headings-font-family: $font-family-sans-serif !default;
+
 // Buttons
 
 $btn-padding-y-sm: .18rem;
@@ -8,71 +15,10 @@ $btn-font-size-sm: .9rem;
 
 /*-- scss:rules --*/
 
-/* schedule */
-
-.week-x-box {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: 2fr 1fr;
-  border-radius: 3px;
-  box-shadow: 0 0 0.5rem $gray-300;
-  
-  .daily-sched {
-    display: grid;
-    grid-template-columns: 1fr 3fr;
-    //row-gap: 1px; 
-    padding: 3px;
-    
-    .date-cell {
-      border-bottom: 1px solid $gray-300;
-      padding: 2px;
-    }
-    
-    .materials-cell {
-      border-bottom: 1px solid $gray-300;
-      padding: 2px;
-      
-      .daily-topic {
-        font-size: 1em;
-      }
-      
-      .PS-btn {
-        
-      }
-    }
-    
-    .date-cell:nth-last-child(-n+2) {
-      border-bottom: none; /* Removes the border from the last two items (the last row) */
-    }
-
-    .materials-cell:nth-last-child(-n+2) {
-      border-bottom: none; /* Removes the border from the last two items (the last row) */
-    }
-  }
-  
-  .resources {
-    border-left: 1px solid $gray-300;
-    padding: 3px;
-  }
-  
+/* shrink the search icon to 50% */
+.navbar #quarto-search.type-overlay .aa-Autocomplete svg.aa-SubmitIcon {
+  width: 18px !important;
+  height: 18px !important;
 }
 
-@media (max-width: 768px) {
 
-.week-x-box {
-  grid-template-columns: 1fr;
-  
-  .daily-sched {
-    grid-template-columns: 1fr;
-    
-    .date-col {
-      border-bottom: none
-    }
-  }
-  
-  .resources {
-    border-left: none;
-    border-top: 1px solid $gray-300;
-  }
-}
-}

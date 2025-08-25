@@ -1,6 +1,4 @@
 ---
-title: Course 101
-subtitle: My University
 listing:
   - id: schedule-listing
     contents: 'scheduled-docs_files/schedule.yml'
@@ -10,10 +8,12 @@ listing:
   #   template: '_extensions/qmd-lab/course-website-ejs/schedule-this-week/schedule.ejs'
 ---
 
+# Welcome to Course 101
+
+We're glad you're here.
+
 :::{#this-week}
 :::
-
-### Schedule
 
 :::{#schedule-listing}
 :::
