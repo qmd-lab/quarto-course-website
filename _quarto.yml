@@ -2,8 +2,14 @@ project:
   type: website
 
 website:
+  title: "Course 101"
+  navbar:
+    search: true
+    pinned: true
+    background: white
   sidebar:
-    logo: assets/stat_bear.png
+    style: docked
+    search: false
     contents:
       - href: index.qmd
         text: Home
@@ -11,10 +17,26 @@ website:
         text: Syllabus
       - href: office-hours.qmd
         text: Office Hours
-      - href: notes.qmd
-        text: Notes 
-      - href: slides.qmd
-        text: Slides 
-      - href: problem-sets.qmd
-        text: Problem Sets
+      - "---"
+      - section: "Materials"
+        contents:
+          - href: notes.qmd
+            text: Notes 
+          - href: slides.qmd
+            text: Slides 
+          - href: problem-sets.qmd
+            text: Problem Sets
+          - href: labs.qmd
+            text: Labs
+      - section: "References"
+        contents:
+          - href: notes.qmd
+            text: Glossary 
 
+format:
+  html:
+    css:
+      - assets/neural.css
+    layout: full
+    toc: false
+    code-copy: true
